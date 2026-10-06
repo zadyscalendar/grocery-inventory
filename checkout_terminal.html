@@ -1,0 +1,1477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#141c1f">
+<meta name="color-scheme" content="dark">
+<title>Checkout</title>
+<link rel="manifest" href="terminal.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root {
+  --slate: #141c1f; --well: #0e1416; --panel: #1c272b; --raise: #27363b; --line: #3b4e54;
+  --chalk: #f4f2ea; --mute: #a9b8ba; --tag: #ffcf33; --tag-ink: #1d1a04;
+  --tomato: #ff6b5e; --leaf: #7ad796; --paper: #fbfaf4; --ink: #1b1b19;
+  --display: Bahnschrift, 'DIN Alternate', 'Avenir Next Condensed', 'Roboto Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --body: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--slate); color: var(--chalk); font: 17px/1.35 var(--display); overflow: hidden; -webkit-text-size-adjust: 100%; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--tag); outline-offset: 2px; }
+
+/* The scanner catch-box stays focusable but takes no space on screen. */
+.scan-catch { position: fixed; left: -200vw; top: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; }
+#print_frame { position: fixed; right: 0; bottom: 0; width: 0; height: 0; border: 0; opacity: 0; pointer-events: none; }
+
+.app { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 30vw, 410px); height: 100%; }
+.till { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
+
+.bar { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 14px 24px 10px; }
+.bar h1 { min-width: 0; margin: 0; font-size: 1.5rem; font-weight: 700; letter-spacing: .01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-meta { display: flex; gap: 18px; align-items: baseline; color: var(--mute); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lamp::before { content: ''; display: inline-block; width: .55em; height: .55em; border-radius: 50%; background: var(--leaf); margin-right: .45em; }
+
+.lamp.away::before { background: var(--tag); }
+
+.scanline { display: flex; align-items: center; gap: 12px; margin: 0 24px; padding: 10px 14px; background: var(--well); border: 1px solid var(--line); border-radius: 6px; min-height: 48px; }
+.scan-lamp { width: 12px; height: 12px; border-radius: 50%; background: var(--tomato); flex: none; }
+.scan-ready .scan-lamp { background: var(--leaf); box-shadow: 0 0 0 4px rgba(122, 215, 150, .18); }
+.scan-echo { margin-left: auto; font-size: 1.2rem; letter-spacing: .08em; font-variant-numeric: tabular-nums; color: var(--tag); min-height: 1em; }
+
+.cart { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; padding: 12px 24px 0; }
+.cart-head, .row { display: grid; grid-template-columns: minmax(0, 1fr) 132px 96px 104px 44px; column-gap: 12px; align-items: center; }
+.cart-head { color: var(--mute); font-size: .88rem; padding: 0 12px 6px; border-bottom: 1px solid var(--line); }
+.cart-head span:nth-child(n+3) { text-align: right; }
+.cart-head span:nth-child(2) { text-align: center; }
+.cart-rows { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
+.row { padding: 10px 12px; border-bottom: 1px solid rgba(59, 78, 84, .55); }
+.row.is-new { animation: landed .7s ease-out; }
+@keyframes landed { from { background: rgba(255, 207, 51, .28); } to { background: transparent; } }
+.row-name { min-width: 0; }
+.row-name span { display: block; font-size: 1.18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-name small { color: var(--tag); font-size: .85rem; }
+.stepper { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; text-align: center; }
+.stepper button, .row-x { height: 40px; border: 1px solid var(--line); background: var(--panel); border-radius: 6px; font-size: 1.3rem; line-height: 1; }
+.stepper button:hover, .row-x:hover { background: var(--raise); }
+.stepper output { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.price { display: grid; justify-items: end; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.price s { color: var(--tomato); font-size: .95rem; text-decoration-thickness: 2px; }
+.row-total { text-align: right; font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.row-x { color: var(--mute); }
+.empty { margin: 0; padding: 48px 12px; color: var(--mute); font-size: 1.2rem; text-align: center; }
+.coupons { list-style: none; margin: 0; padding: 8px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.coupons li { display: flex; align-items: center; gap: 4px; background: var(--tag); color: var(--tag-ink); font-weight: 700; padding: 3px 4px 3px 10px; border-radius: 3px; }
+.coupons button { border: 0; background: transparent; color: inherit; font-size: 1.15rem; line-height: 1; padding: 2px 6px; }
+
+.checkout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 320px); gap: 14px 28px; padding: 14px 24px 18px; background: var(--panel); border-top: 1px solid var(--line); }
+.acct label { display: block; color: var(--mute); font-size: .9rem; margin-bottom: 4px; }
+.acct input { width: 100%; max-width: 300px; height: 44px; padding: 0 12px; background: var(--well); border: 1px solid var(--line); border-radius: 6px; font-size: 1.15rem; letter-spacing: .04em; }
+.acct-card { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.acct-card strong { font-size: 1.15rem; }
+.acct-card .owes { color: var(--mute); flex-basis: 100%; }
+.pill { font-size: .85rem; font-weight: 700; padding: 1px 8px; border-radius: 3px; background: var(--tomato); color: #2a0703; }
+
+.totals { margin: 0; align-self: end; }
+.totals div { display: flex; justify-content: space-between; gap: 12px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.totals dd { margin: 0; color: var(--chalk); }
+.totals .grand { align-items: baseline; margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--chalk); font-size: 1.15rem; }
+.totals .grand dd { font-size: 2.9rem; font-weight: 700; line-height: 1; color: var(--tag); letter-spacing: -.01em; }
+.saved { margin: 4px 0 0; text-align: right; color: var(--leaf); }
+
+.lock { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 14px; border: 2px solid var(--tomato); border-radius: 6px; background: rgba(255, 107, 94, .1); }
+.lock p { margin: 0; flex: 1 1 320px; font-family: var(--body); font-size: 1rem; }
+.pay { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.paybtn { position: relative; display: grid; align-content: center; justify-items: start; min-height: 68px; padding: 8px 54px 8px 16px; text-align: left; background: var(--raise); border: 1px solid var(--line); border-radius: 6px; font-size: 1.2rem; font-weight: 700; }
+.paybtn small { font-weight: 400; font-size: .85rem; color: var(--mute); }
+.paybtn kbd { position: absolute; right: 12px; top: 50%; translate: 0 -50%; font: 600 .8rem var(--display); border: 1px solid currentColor; border-radius: 4px; padding: 1px 6px; opacity: .65; }
+.paybtn.cash { background: var(--tag); border-color: var(--tag); color: var(--tag-ink); }
+.paybtn:hover:not(:disabled) { filter: brightness(1.1); }
+.paybtn:disabled { opacity: .38; }
+.switch { grid-column: 1 / -1; justify-self: start; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 4px 0; color: var(--mute); font-size: 1rem; }
+.switch .knob { width: 44px; height: 24px; border-radius: 12px; border: 1px solid var(--line); background: var(--well); position: relative; flex: none; }
+.switch .knob::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--mute); transition: left .12s; }
+.switch[aria-checked="true"] { color: var(--chalk); }
+.switch[aria-checked="true"] .knob { background: var(--tag); border-color: var(--tag); }
+.switch[aria-checked="true"] .knob::after { left: 23px; background: var(--tag-ink); }
+
+.btn { min-height: 44px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--line); background: var(--raise); font-weight: 600; }
+.btn:hover { filter: brightness(1.12); }
+.btn.primary { background: var(--tag); border-color: var(--tag); color: var(--tag-ink); }
+.btn.ghost { background: transparent; }
+.btn.small { min-height: 36px; padding: 0 12px; font-size: .95rem; }
+
+/* Receipt tape */
+.tape { background: var(--well); border-left: 1px solid var(--line); padding: 22px 20px 40px; overflow-y: auto; }
+.paper { position: relative; background: var(--paper); color: var(--ink); padding: 20px 16px 22px; box-shadow: 0 10px 30px rgba(0, 0, 0, .45); }
+.paper::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 10px;
+  background: linear-gradient(135deg, var(--paper) 50%, transparent 50%) 0 0 / 14px 10px repeat-x, linear-gradient(225deg, var(--paper) 50%, transparent 50%) 0 0 / 14px 10px repeat-x; }
+
+/* Dialogs */
+dialog.dlg { width: min(520px, calc(100vw - 32px)); padding: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--chalk); font-family: var(--body); font-size: 1rem; }
+dialog.dlg::backdrop { background: rgba(7, 11, 12, .78); }
+.dlg h2 { margin: 0 0 12px; font: 700 1.45rem/1.2 var(--display); }
+.dlg p { margin: 0 0 12px; }
+.dlg label { display: block; margin: 14px 0 4px; color: var(--mute); font-size: .92rem; }
+.dlg input:not([type=radio]) { width: 100%; height: 48px; padding: 0 12px; background: var(--well); border: 1px solid var(--line); border-radius: 6px; font: 1.3rem var(--display); }
+.dlg-btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.dlg .big { font: 700 2.6rem/1 var(--display); color: var(--tag); margin-bottom: 14px; font-variant-numeric: tabular-nums; }
+.dlg .err { color: var(--tomato); min-height: 1.3em; margin: 8px 0 0; }
+.dlg .fine { color: var(--mute); font-size: .92rem; }
+.dlg .sums { display: flex; justify-content: space-between; align-items: baseline; font: 1.15rem var(--display); margin: 14px 0 0; }
+.dlg .sums b { font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+.quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+#pinInput { letter-spacing: .6em; text-align: center; font-size: 1.8rem; }
+.map-list { display: grid; gap: 8px; max-height: 40vh; overflow-y: auto; }
+.map-opt { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; margin: 0 !important; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--chalk) !important; font-size: 1rem !important; cursor: pointer; }
+.map-opt:has(input:checked) { border-color: var(--tag); background: rgba(255, 207, 51, .08); }
+.map-opt input { grid-row: span 2; width: 20px; height: 20px; accent-color: var(--tag); }
+.map-opt span { color: var(--mute); font-size: .9rem; grid-column: 2; overflow-wrap: anywhere; }
+.host-opt { display: grid; gap: 2px; text-align: left; padding: 10px 12px; }
+.host-opt span { color: var(--mute); font-weight: 400; font-size: .9rem; }
+.host-opt:disabled { opacity: .55; }
+#hostCode { flex: 1 1 160px; width: auto; text-transform: uppercase; }
+.pulse { height: 6px; border-radius: 3px; background: var(--well); overflow: hidden; margin: 18px 0; }
+.pulse::after { content: ''; display: block; width: 35%; height: 100%; background: var(--tag); border-radius: 3px; animation: sweep 1.3s ease-in-out infinite alternate; }
+@keyframes sweep { from { translate: 0; } to { translate: 186%; } }
+
+.veil { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(14, 20, 22, .9); border: 4px dashed var(--tag); font-size: 1.6rem; font-weight: 700; pointer-events: none; }
+.toasts { position: fixed; right: 20px; top: 14px; z-index: 60; display: grid; gap: 8px; width: min(370px, calc(100vw - 40px)); pointer-events: none; }
+.toast { padding: 12px 16px; border-radius: 6px; background: var(--chalk); color: var(--ink); font: 600 1rem var(--body); box-shadow: 0 6px 20px rgba(0, 0, 0, .5); border-left: 6px solid var(--mute); }
+.toast.good { border-left-color: #1f9d4d; }
+.toast.bad { border-left-color: #d6311f; }
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  .app { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 100%; }
+  .bar { flex-wrap: wrap; row-gap: 2px; }
+  .bar h1 { flex: 1 1 100%; }
+  .till { grid-template-rows: auto auto auto auto; }
+  .cart-rows { max-height: 46vh; }
+  .cart-head, .row { grid-template-columns: minmax(0, 1fr) 112px 76px 84px 40px; column-gap: 8px; }
+  .checkout { grid-template-columns: 1fr; }
+  .tape { border-left: 0; border-top: 1px solid var(--line); }
+  .paper { max-width: 380px; margin: 0 auto; }
+  .bar, .cart, .checkout { padding-left: 14px; padding-right: 14px; }
+  .scanline { margin: 0 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .row.is-new, .pulse::after { animation: none; } .switch .knob::after { transition: none; } }
+@media print { .till, .toasts, .veil, dialog { display: none !important; } .app { display: block; } .tape { border: 0; padding: 0; background: #fff; } .paper { box-shadow: none; } }
+</style>
+<!-- Receipt rules live in their own sheet: the same text is copied into the hidden print frame. -->
+<style id="rcptCss">
+.rcpt { font: 13px/1.4 ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace; }
+.rcpt p { margin: 0; }
+.rcpt header { text-align: center; margin-bottom: 10px; }
+.rcpt .r-store { font-weight: 700; font-size: 1.2em; }
+.rcpt .r-meta { display: flex; justify-content: space-between; gap: 8px; }
+.rcpt hr { border: 0; border-top: 1px dashed currentColor; margin: 8px 0; }
+.rcpt ul { list-style: none; margin: 0; padding: 0; }
+.rcpt li { display: grid; grid-template-columns: auto 1fr auto; column-gap: 8px; align-items: end; margin-bottom: 6px; }
+.rcpt .r-name { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.rcpt .r-qty { padding-left: 2ch; }
+.rcpt .r-each { display: grid; }
+.rcpt .r-each s { color: #c5281c; }
+.rcpt .r-amt, .rcpt dd { text-align: right; font-variant-numeric: tabular-nums; }
+.rcpt dl { margin: 0; }
+.rcpt dl div { display: flex; justify-content: space-between; gap: 8px; }
+.rcpt dd { margin: 0; }
+.rcpt .r-grand { font-weight: 700; font-size: 1.3em; margin-top: 4px; }
+.rcpt .r-note { text-align: center; margin-top: 8px; }
+.rcpt .r-quiet { opacity: .6; }
+.rcpt footer { text-align: center; margin-top: 12px; }
+</style>
+</head>
+<body>
+<input id="scan" class="scan-catch" type="text" inputmode="none" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Barcode scanner input">
+
+<div class="app">
+  <main class="till">
+    <header class="bar">
+      <h1 id="storeName">Checkout</h1>
+      <div class="bar-meta"><span id="linkLamp" class="lamp" hidden></span><span id="offlineLamp" class="lamp" hidden>Works offline</span><time id="clock"></time></div>
+    </header>
+
+    <section class="scanline" aria-live="polite">
+      <span class="scan-lamp"></span>
+      <span id="scanState">Ready to scan</span>
+      <span id="scanEcho" class="scan-echo"></span>
+    </section>
+
+    <section class="cart" aria-label="Cart">
+      <div class="cart-head" aria-hidden="true"><span>Item</span><span>Qty</span><span>Each</span><span>Total</span><span></span></div>
+      <ol id="cartRows" class="cart-rows"></ol>
+      <ul id="couponRow" class="coupons" aria-label="Coupons applied"></ul>
+    </section>
+
+    <section class="checkout" aria-label="Payment">
+      <div class="acct">
+        <label for="phone">Customer account number (phone)</label>
+        <input id="phone" data-keepfocus type="tel" inputmode="numeric" autocomplete="off" placeholder="Type the phone number, then Enter">
+        <div id="acctInfo"></div>
+      </div>
+      <div>
+        <dl class="totals">
+          <div><dt>Subtotal</dt><dd id="tSub">$0.00</dd></div>
+          <div id="tOffRow" hidden><dt>Coupons</dt><dd id="tOff"></dd></div>
+          <div><dt id="tTaxLabel">Tax</dt><dd id="tTax">$0.00</dd></div>
+          <div class="grand"><dt>Total</dt><dd id="tTotal">$0.00</dd></div>
+        </dl>
+        <p id="tSaved" class="saved" hidden></p>
+      </div>
+      <div class="lock" id="lock" hidden role="alert"><p id="lockMsg"></p></div>
+      <div class="pay">
+        <button type="button" class="paybtn cash" id="payCash"><span>Pay cash</span><kbd>F2</kbd></button>
+        <button type="button" class="paybtn" id="payCard"><span>Card / External Device</span><small id="cardHint"></small><kbd>F3</kbd></button>
+        <button type="button" class="paybtn" id="payAcct" hidden><span>Charge to Account</span><kbd>F4</kbd></button>
+      </div>
+      <button type="button" class="switch" id="manualToggle" role="switch" aria-checked="false"><span class="knob"></span>Manual Standalone Card Device Capture</button>
+    </section>
+  </main>
+
+  <aside class="tape" aria-label="Receipt"><div class="paper" id="paper"></div></aside>
+</div>
+
+<div id="dropVeil" class="veil" hidden>Release to load the database file</div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<iframe name="print_frame" id="print_frame" title="Receipt print frame" aria-hidden="true" tabindex="-1"></iframe>
+
+<dialog id="askDlg" class="dlg"><form method="dialog">
+  <h2 id="askTitle"></h2><div id="askBody"></div><div id="askBtns" class="dlg-btns"></div>
+</form></dialog>
+
+<dialog id="pinDlg" class="dlg"><form>
+  <h2 id="pinTitle"></h2>
+  <p id="pinNote" class="err" hidden></p>
+  <label for="pinInput">4-digit owner PIN</label>
+  <input id="pinInput" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off" required>
+  <p id="pinErr" class="err" role="alert"></p>
+  <div class="dlg-btns"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Unlock</button></div>
+</form></dialog>
+
+<dialog id="cashDlg" class="dlg"><form>
+  <h2>Cash payment</h2>
+  <p class="sums">Amount due <b id="cashDue"></b></p>
+  <label for="cashIn">Cash received</label>
+  <input id="cashIn" inputmode="decimal" autocomplete="off">
+  <div id="cashQuick" class="quick"></div>
+  <p class="sums">Change <b id="cashChange"></b></p>
+  <p id="cashErr" class="err" role="alert"></p>
+  <div class="dlg-btns"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Take payment</button></div>
+</form></dialog>
+
+<dialog id="mapDlg" class="dlg"><form>
+  <h2>Which card device does this register use?</h2>
+  <p>This is asked once per register. Card totals are pushed to the device you pick.</p>
+  <div id="mapList" class="map-list" role="radiogroup" aria-label="Card device profiles"></div>
+  <label for="mapEndpoint">Device address for this register</label>
+  <input id="mapEndpoint" autocomplete="off" spellcheck="false">
+  <p id="mapSerial" class="fine" hidden><button type="button" class="btn small" id="mapGrant">Choose serial port</button> <span id="mapSerialState"></span></p>
+  <p id="mapErr" class="err" role="alert"></p>
+  <div class="dlg-btns"><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn primary">Use this device</button></div>
+</form></dialog>
+
+<dialog id="hostDlg" class="dlg"><form>
+  <h2>Choose this register’s host</h2>
+  <p>The host is the owner’s computer. Over the shop Wi-Fi, this register sends it every sale and picks up prices and accounts from it.</p>
+  <div id="hostList" class="map-list"></div>
+  <p id="hostState" class="fine" role="status"></p>
+  <label for="hostCode">Host code, shown on the owner’s screen</label>
+  <div class="quick"><input id="hostCode" autocomplete="off" spellcheck="false" maxlength="9" placeholder="XXXX-XXXX"><button class="btn" id="hostFind">Find</button></div>
+  <div class="dlg-btns"><button type="button" class="btn ghost" id="hostSkip">Use without a host</button><button type="button" class="btn ghost" data-close>Close</button></div>
+</form></dialog>
+
+<dialog id="waitDlg" class="dlg">
+  <h2>Waiting for Hardware Payment…</h2>
+  <p class="big" id="waitAmt"></p>
+  <p id="waitDev"></p>
+  <p id="waitSim" class="err" hidden>Simulator profile: no card is being charged.</p>
+  <div class="pulse" aria-hidden="true"></div>
+  <p class="fine">If you cancel here, check the card device as well. A card that was already tapped may still be charged.</p>
+  <div class="dlg-btns"><button type="button" class="btn ghost" id="waitCancel">Cancel payment</button></div>
+</dialog>
+
+<script>
+/* ===== Shared core. This block is identical in checkout_terminal.html and owner_manager.html ===== */
+const Core = (() => {
+  'use strict';
+
+  /* ---------- money and dates (all arithmetic in integer cents) ---------- */
+  const toCents = v => { const n = Math.round(Number(v) * 100); return Number.isFinite(n) ? n : 0; };
+  const toMoney = c => Math.round(c) / 100;
+  const fmt = c => (c < 0 ? '-$' : '$') + (Math.abs(c) / 100).toFixed(2);
+  const pad2 = n => String(n).padStart(2, '0');
+  const isoDate = (d = new Date()) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const addDays = (iso, days) => { const [y, m, d] = iso.split('-').map(Number); return isoDate(new Date(y, m - 1, d + days)); };
+  const phoneKey = s => String(s ?? '').replace(/\D/g, '');
+  const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+  /* ---------- SHA-256 in plain JS, so PIN checks work without a secure context ---------- */
+  const K = new Uint32Array([
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
+  const W = new Uint32Array(64);
+  const encoder = new TextEncoder();
+  function sha256(str) {
+    const bytes = encoder.encode(str), len = bytes.length;
+    const total = ((len + 9 + 63) >> 6) << 6;
+    const buf = new Uint8Array(total); buf.set(bytes); buf[len] = 0x80;
+    const dv = new DataView(buf.buffer);
+    dv.setUint32(total - 8, Math.floor(len / 0x20000000)); dv.setUint32(total - 4, (len << 3) >>> 0);
+    const H = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+    for (let off = 0; off < total; off += 64) {
+      for (let i = 0; i < 16; i++) W[i] = dv.getUint32(off + i * 4);
+      for (let i = 16; i < 64; i++) {
+        const x = W[i - 15], y = W[i - 2];
+        const s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+        const s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+        W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
+      }
+      let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], hh = H[7];
+      for (let i = 0; i < 64; i++) {
+        const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        const t1 = (hh + S1 + ((e & f) ^ (~e & g)) + K[i] + W[i]) >>> 0;
+        const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+        hh = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0] += a; H[1] += b; H[2] += c; H[3] += d; H[4] += e; H[5] += f; H[6] += g; H[7] += hh;
+    }
+    let out = ''; for (const x of H) out += x.toString(16).padStart(8, '0');
+    return out;
+  }
+
+  /* ---------- PIN: salted, stretched SHA-256 stored as "s256$rounds$salt$digest" ---------- */
+  const PIN_ROUNDS = 12000;
+  const randomHex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => b.toString(16).padStart(2, '0')).join('');
+  function hashPin(pin, salt = randomHex(16), rounds = PIN_ROUNDS) {
+    let d = sha256(`${salt}:${pin}`);
+    for (let i = 1; i < rounds; i++) d = sha256(d + salt);
+    return `s256$${rounds}$${salt}$${d}`;
+  }
+  function verifyPin(pin, stored) {
+    const [tag, rounds, salt, digest] = String(stored ?? '').split('$');
+    if (tag !== 's256' || !digest || !(Number(rounds) > 0) || Number(rounds) > 200000) return false;
+    return hashPin(String(pin), salt, Number(rounds)) === stored;
+  }
+  /* Wrong-PIN guard: every fifth miss on this device adds a 30 second wait. */
+  const GUARD_KEY = 'pos.pin.guard';
+  function tryPin(pin, stored) {
+    let g = {}; try { g = JSON.parse(localStorage.getItem(GUARD_KEY)) || {}; } catch { /* fresh guard */ }
+    const now = Date.now();
+    if (g.until > now) return { ok: false, wait: Math.ceil((g.until - now) / 1000) };
+    if (verifyPin(pin, stored)) { try { localStorage.removeItem(GUARD_KEY); } catch { /* ignore */ } return { ok: true }; }
+    const fails = (g.fails || 0) + 1;
+    const until = fails % 5 === 0 ? now + 30000 * (fails / 5) : 0;
+    try { localStorage.setItem(GUARD_KEY, JSON.stringify({ fails, until })); } catch { /* ignore */ }
+    return { ok: false, wait: until ? Math.ceil((until - now) / 1000) : 0 };
+  }
+
+  /* ---------- schema ---------- */
+  const PROMO_TYPES = ['percentage', 'fixed', 'clearance'];
+  const emptyDb = () => ({
+    inventory: {}, promotions: {}, customers: {},
+    payment_devices: { ACTIVE_PROFILE_ID: '', profiles: {} },
+    settings: { pin_hash: '', receipt_header: '', credit_allowed_globally: true, global_credit_duration_days: 7, printing_enabled: true, tax_rate_percent: 0, last_modified: '' },
+    sales_history: []
+  });
+  const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+  const bool = (v, dflt) => v === true || v === 'true' ? true : v === false || v === 'false' ? false : dflt;
+  const money = v => Math.max(0, toMoney(toCents(v)));
+  const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const safeKey = k => { const s = String(k ?? '').trim(); return s === '__proto__' ? '' : s; };
+
+  /* Turns any parsed JSON into a clean database. Throws when it is not a sync file; reports rows it had to skip. */
+  function normalizeDb(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !raw.inventory || typeof raw.inventory !== 'object') {
+      throw new Error('This is not an inventory_db.json sync file (it has no "inventory" section).');
+    }
+    const db = emptyDb(), skipped = [];
+    for (const [code, it] of Object.entries(raw.inventory)) {
+      const key = safeKey(code), name = String(obj(it).name ?? '').trim();
+      if (!key || !name) { skipped.push(`inventory "${code}"`); continue; }
+      db.inventory[key] = { name, price: money(it.price), sale_price: money(it.sale_price), stock: Math.trunc(Number(it.stock)) || 0, category: String(it.category ?? '').trim(), taxable: bool(it.taxable, false) };
+    }
+    for (const [code, p] of Object.entries(obj(raw.promotions))) {
+      const key = safeKey(code), type = String(obj(p).type ?? '').toLowerCase(), value = Number(obj(p).value);
+      if (!key || !PROMO_TYPES.includes(type) || !(value > 0) || (type !== 'fixed' && value > 100)) { skipped.push(`promotion "${code}"`); continue; }
+      db.promotions[key] = { type, value, applies_to: String(p.applies_to ?? 'all').trim() || 'all' };
+    }
+    for (const [phone, c] of Object.entries(obj(raw.customers))) {
+      const key = phoneKey(phone), name = String(obj(c).name ?? '').trim();
+      if (key.length < 4 || !name) { skipped.push(`customer "${phone}"`); continue; }
+      db.customers[key] = { name, balance_due: money(c.balance_due), due_date: isDate(c.due_date) ? c.due_date : null, status: c.status === 'frozen' ? 'frozen' : 'active' };
+    }
+    const pd = obj(raw.payment_devices);
+    for (const [id, p] of Object.entries(obj(pd.profiles))) {
+      const key = safeKey(id);
+      if (!key || !p || typeof p !== 'object') { skipped.push(`payment profile "${id}"`); continue; }
+      db.payment_devices.profiles[key] = {
+        provider_name: String(p.provider_name ?? '').trim(), connection_type: p.connection_type === 'SERIAL_COM' ? 'SERIAL_COM' : 'LAN_IP',
+        endpoint_address: String(p.endpoint_address ?? '').trim(), label: String(p.label ?? '').trim() || key
+      };
+    }
+    const ids = Object.keys(db.payment_devices.profiles), active = String(pd.ACTIVE_PROFILE_ID ?? '');
+    db.payment_devices.ACTIVE_PROFILE_ID = ids.includes(active) ? active : (ids[0] || '');
+    const s = obj(raw.settings), days = Math.trunc(Number(s.global_credit_duration_days)), tax = Number(s.tax_rate_percent);
+    db.settings = {
+      pin_hash: typeof s.pin_hash === 'string' ? s.pin_hash : '',
+      receipt_header: String(s.receipt_header ?? ''),
+      credit_allowed_globally: bool(s.credit_allowed_globally, true),
+      global_credit_duration_days: days >= 0 ? days : 7,
+      printing_enabled: bool(s.printing_enabled, true),
+      tax_rate_percent: tax >= 0 && tax <= 100 ? tax : 0,
+      last_modified: typeof s.last_modified === 'string' && !Number.isNaN(Date.parse(s.last_modified)) ? s.last_modified : ''
+    };
+    db.sales_history = (Array.isArray(raw.sales_history) ? raw.sales_history : []).filter(r => r && typeof r === 'object' && r.id);
+    return { db, skipped };
+  }
+
+  const isOverdue = (c, today = isoDate()) => toCents(c.balance_due) > 0 && !!c.due_date && today > c.due_date;
+  const isFrozen = (c, today) => c.status === 'frozen' || isOverdue(c, today);
+  /* Marks every past-due account frozen. Returns how many it changed. */
+  const needsFreeze = (core, today = isoDate()) => Object.values(core.customers).some(c => c.status !== 'frozen' && isOverdue(c, today));
+  const freezeOverdue = (core, today = isoDate()) => { for (const c of Object.values(core.customers)) if (c.status !== 'frozen' && isOverdue(c, today)) c.status = 'frozen'; };
+
+  /* What one sale or account payment does to stock and balances. The register runs it at the moment of sale, the host
+     runs it once when a register reports the sale, and a register replays it for sales the host has not confirmed. */
+  function applyRecord(core, rec) {
+    const acct = rec.customer && has(core.customers, rec.customer) ? core.customers[rec.customer] : null;
+    if (rec.type === 'account_payment') {
+      if (!acct) return;
+      const left = Math.max(0, toCents(acct.balance_due) - toCents(rec.total));
+      acct.balance_due = toMoney(left);
+      if (left === 0) { acct.due_date = null; acct.status = 'active'; }
+      return;
+    }
+    for (const it of rec.items || []) if (has(core.inventory, it.barcode)) core.inventory[it.barcode].stock -= Math.trunc(Number(it.qty)) || 0;
+    if (rec.payment?.method === 'account' && acct) {
+      const before = toCents(acct.balance_due);
+      acct.balance_due = toMoney(before + toCents(rec.total));
+      if (!(before > 0 && acct.due_date)) acct.due_date = addDays(isoDate(new Date(rec.ts)), core.settings.global_credit_duration_days);
+    }
+  }
+  /* Owner changes carry a timestamp and the newest one wins everywhere. It never goes backwards on one computer, and a
+     stamp from more than ten minutes in the future (a wrong clock) counts as no stamp at all. */
+  const stampOf = core => { const t = Date.parse(core?.settings?.last_modified || '') || 0; return t > Date.now() + 600000 ? 0 : t; };
+  const stampNow = core => { core.settings.last_modified = new Date(Math.max(Date.now(), stampOf(core) + 1)).toISOString(); };
+
+  /* ---------- storage: IndexedDB, one "core" record plus one record per sale ---------- */
+  const Store = (() => {
+    let opening;
+    const chan = 'BroadcastChannel' in self ? new BroadcastChannel('grocer-pos') : null;
+    const open = () => opening ??= new Promise((res, rej) => {
+      const r = indexedDB.open('grocer_pos', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('sales', { keyPath: 'id' }); };
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error || new Error('This browser is blocking local storage for the register.'));
+    });
+    const stripSales = db => { const { sales_history, ...core } = db; return core; };
+    const run = async (stores, mode, work) => {
+      const idb = await open();
+      return new Promise((res, rej) => {
+        const tx = idb.transaction(stores, mode); let out, failure;
+        tx.oncomplete = () => res(out);
+        tx.onabort = tx.onerror = () => rej(failure || tx.error || new Error('Saving to local storage failed.'));
+        try { work(tx, v => { out = v; }, e => { failure = e; try { tx.abort(); } catch { /* already closed */ } }); } catch (e) { failure = e; tx.abort(); }
+      });
+    };
+    /* Read the freshest core, change it, write it and any sale records in one transaction. */
+    async function update(change, records = []) {
+      const core = await run(['kv', 'sales'], 'readwrite', (tx, done, fail) => {
+        const kv = tx.objectStore('kv'), get = kv.get('core');
+        get.onsuccess = () => {
+          try {
+            const c = get.result || stripSales(emptyDb());
+            change(c); kv.put(c, 'core');
+            for (const r of records) tx.objectStore('sales').put(r);
+            done(c);
+          } catch (e) { fail(e); }
+        };
+      });
+      chan?.postMessage('changed');
+      return core;
+    }
+    async function load() {
+      return run(['kv'], 'readonly', (tx, done) => { const g = tx.objectStore('kv').get('core'); g.onsuccess = () => done(g.result || null); });
+    }
+    async function allSales() {
+      const rows = await run(['sales'], 'readonly', (tx, done) => { const g = tx.objectStore('sales').getAll(); g.onsuccess = () => done(g.result); });
+      return rows.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+    }
+    /* Swap in a whole database. Sales are merged by id, never dropped. */
+    async function replace(db) {
+      const core = stripSales(db);
+      await run(['kv', 'sales'], 'readwrite', (tx, done) => {
+        tx.objectStore('kv').put(core, 'core');
+        for (const r of db.sales_history || []) tx.objectStore('sales').put(r);
+        done();
+      });
+      chan?.postMessage('changed');
+      return core;
+    }
+    /* Which of these sale ids are not stored yet. */
+    async function missing(ids) {
+      return run(['sales'], 'readonly', (tx, done) => {
+        const out = new Set(), sales = tx.objectStore('sales'); done(out);
+        for (const id of ids) { const g = sales.getKey(id); g.onsuccess = () => { if (g.result === undefined) out.add(id); }; }
+      });
+    }
+    const onChange = cb => { if (chan) chan.onmessage = cb; };
+    return { load, update, allSales, replace, missing, onChange };
+  })();
+
+  /* Schema-ordered export text and a client-side download. */
+  const compile = (core, sales) => JSON.stringify({
+    inventory: core.inventory, promotions: core.promotions, customers: core.customers,
+    payment_devices: core.payment_devices, settings: core.settings, sales_history: sales
+  }, null, 2);
+  function download(text, filename) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+  const readFile = file => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error || new Error('Could not read the file.'));
+    r.readAsText(file);
+  });
+  /* Reads dropped or picked files one by one and returns the first valid database. */
+  async function readDbFiles(files) {
+    let problem = 'No file was received.';
+    for (const f of files) {
+      try { return normalizeDb(JSON.parse(await readFile(f))); }
+      catch (e) { problem = `${f.name}: ${e instanceof SyntaxError ? 'not valid JSON.' : e.message}`; }
+    }
+    throw new Error(problem);
+  }
+
+  /* ---------- DOM helper: builds elements from data, never from HTML strings ---------- */
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (k === 'value' || k === 'checked' || k === 'disabled' || k === 'hidden' || k === 'selected') el[k] = v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid);
+    return el;
+  }
+
+  const registerOffline = () => {
+    if (!('serviceWorker' in navigator) || location.protocol === 'file:') return Promise.resolve(false);
+    return navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => true).catch(() => false);
+  };
+
+  /* ---------- Wi-Fi sync plumbing, shared by the host and the registers ----------
+     Two pages on the same network talk directly over a WebRTC data channel. To open it, each side must first hand the
+     other one short "how to reach me" note. Those notes go through a public message board (ntfy). Shop data never does. */
+  const Link = (() => {
+    const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+    const SERVICE = pref('pos.link.service', 'https://ntfy.sh').replace(/\/+$/, '');
+    const proof = (key, nonce, who) => sha256(`${key}|${nonce}|${who}`);
+    async function publish(topic, msg) {
+      const res = await fetch(`${SERVICE}/${topic}`, { method: 'POST', body: JSON.stringify(msg), cache: 'no-store' });
+      if (!res.ok) throw new Error(`The link service answered ${res.status}.`);
+    }
+    /* Listens on one or more boards. onState(true) fires each time the listening connection is (re)established. */
+    function subscribe(topics, onMsg, onState) {
+      const es = new EventSource(`${SERVICE}/${topics.join(',')}/sse`);
+      es.onopen = () => onState?.(true);
+      es.onerror = () => onState?.(false);
+      es.onmessage = e => {
+        let m;
+        try { const env = JSON.parse(e.data); if (env.event && env.event !== 'message') return; m = JSON.parse(env.message); } catch { return; }
+        if (m && typeof m === 'object') onMsg(m);
+      };
+      return () => es.close();
+    }
+    /* Computers behind one router share a public address. Its hash names the board where a new register asks "who is host?". */
+    async function areaTopic() {
+      let ip = pref('pos.link.area', '');
+      if (!ip) ip = (await (await fetch('https://api.ipify.org?format=json', { cache: 'no-store' })).json()).ip;
+      return 'gpos-a-' + sha256('grocer-pos-area|' + ip).slice(0, 24);
+    }
+    const gathered = pc => new Promise(res => {
+      if (pc.iceGatheringState === 'complete') return res();
+      const t = setTimeout(res, 2500);
+      pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+    });
+    const compact = sdp => { let n = 0; return sdp.split('\r\n').filter(l => !l.startsWith('a=candidate') || ++n <= 8).join('\r\n'); };   // notes must stay under 4 KB
+    async function offer() {
+      const pc = new RTCPeerConnection({ iceServers: [] }), dc = pc.createDataChannel('pos');
+      await pc.setLocalDescription(await pc.createOffer()); await gathered(pc);
+      return { pc, dc, sdp: compact(pc.localDescription.sdp) };
+    }
+    async function answer(sdp) {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      const channel = new Promise(res => { pc.ondatachannel = e => res(e.channel); });
+      await pc.setRemoteDescription({ type: 'offer', sdp });
+      await pc.setLocalDescription(await pc.createAnswer()); await gathered(pc);
+      return { pc, channel, sdp: compact(pc.localDescription.sdp) };
+    }
+    /* JSON messages of any size over a data channel: split into small frames, sent in order, rebuilt on arrival. */
+    function wire(dc, onMsg, onClose) {
+      const FRAME = 12000, parts = new Map(); let seq = 0, chain = Promise.resolve();
+      dc.onmessage = e => {
+        const s = String(e.data), a = s.indexOf('|'), b = s.indexOf('|', a + 1), c = s.indexOf('|', b + 1);
+        if (c < 0) return;
+        const id = s.slice(0, a), n = Number(s.slice(b + 1, c)), got = parts.get(id) || [];
+        got.push(s.slice(c + 1));
+        if (got.length < n) return void parts.set(id, got);
+        parts.delete(id);
+        let msg; try { msg = JSON.parse(got.join('')); } catch { return; }
+        if (msg && typeof msg === 'object') onMsg(msg);
+      };
+      dc.onclose = () => onClose?.();
+      const send = obj => (chain = chain.then(async () => {
+        const s = JSON.stringify(obj), n = Math.max(1, Math.ceil(s.length / FRAME)), id = (seq++).toString(36);
+        for (let i = 0; i < n; i++) {
+          while (dc.readyState === 'open' && dc.bufferedAmount > 1 << 20) await new Promise(r => setTimeout(r, 25));
+          if (dc.readyState !== 'open') return;
+          dc.send(`${id}|${i}|${n}|${s.slice(i * FRAME, (i + 1) * FRAME)}`);
+        }
+      }).catch(() => {}));
+      return { send, close: () => { try { dc.close(); } catch { /* already closed */ } } };
+    }
+    const prettyCode = id => { const c = String(id).slice(0, 8).toUpperCase(); return c.slice(0, 4) + '-' + c.slice(4); };
+    return { SERVICE, rid: randomHex, proof, publish, subscribe, areaTopic, offer, answer, wire, prettyCode };
+  })();
+
+  return { applyRecord, stampOf, stampNow, Link, toCents, toMoney, fmt, pad2, isoDate, addDays, phoneKey, isDate, sha256, hashPin, verifyPin, tryPin, PROMO_TYPES, emptyDb, normalizeDb, has, safeKey, isOverdue, isFrozen, needsFreeze, freezeOverdue, Store, compile, download, readDbFiles, h, registerOffline };
+})();
+</script>
+<script>
+(() => {
+  'use strict';
+  const { toCents, toMoney, fmt, pad2, isoDate, addDays, phoneKey, tryPin, has, isFrozen, needsFreeze, freezeOverdue, Store, compile, download, readDbFiles, h, registerOffline } = Core;
+  const $ = id => document.getElementById(id);
+  const LS = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked: the choice lasts this session only */ } }
+  };
+  const K_DEVICE = 'pos.station.device', K_MANUAL = 'pos.station.manual_card', K_STATION = 'pos.station.id';
+  const HARDWARE_TIMEOUT_MS = 120000;
+  let station = LS.get(K_STATION);
+  if (!station) { station = 'REG-' + Math.random().toString(36).slice(2, 6).toUpperCase(); LS.set(K_STATION, station); }
+
+  let DB = null;                 // everything except sales_history
+  const cart = new Map();        // barcode -> quantity
+  const coupons = new Set();     // promotion codes scanned for this sale
+  let customer = null;           // phone key of the attached account
+  let lastSale = null;           // finished receipt, shown until the next scan
+  let busy = false;              // a payment is in flight
+  let flash = null;              // barcode to highlight on the next render
+  let manualCard = LS.get(K_MANUAL) === true;
+
+  /* ---------- small UI helpers ---------- */
+  function toast(text, kind = '') {
+    const el = h('div', { class: 'toast ' + kind, text });
+    $('toasts').append(el);
+    while ($('toasts').children.length > 3) $('toasts').firstChild.remove();
+    setTimeout(() => el.remove(), kind === 'bad' ? 6000 : 3500);
+  }
+  let audio;
+  function beep(ok) {
+    try {
+      audio ??= new (window.AudioContext || window.webkitAudioContext)();
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = ok ? 1250 : 220; o.type = ok ? 'sine' : 'square';
+      g.gain.value = .07; o.connect(g).connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + (ok ? .07 : .28));
+    } catch { /* no audio device */ }
+  }
+  const modalOpen = () => !!document.querySelector('dialog[open]');
+  const newId = () => (Date.now().toString(36) + Math.random().toString(36).slice(2, 5)).toUpperCase();
+  for (const b of document.querySelectorAll('dialog [data-close]')) b.addEventListener('click', () => b.closest('dialog').close(''));
+
+  /* One reusable question dialog. Resolves with the chosen button's value, or '' when dismissed. */
+  function ask({ title, body = [], buttons }) {
+    const dlg = $('askDlg');
+    $('askTitle').textContent = title;
+    $('askBody').replaceChildren(...[].concat(body).map(b => typeof b === 'string' ? h('p', { text: b }) : b));
+    $('askBtns').replaceChildren(...buttons.map(b => b.cancel
+      ? h('button', { type: 'button', class: 'btn ghost', text: b.label, onclick: () => dlg.close('') })
+      : h('button', { value: b.value, class: 'btn ' + (b.kind || ''), text: b.label })));
+    return new Promise(res => {
+      dlg.addEventListener('close', () => res(dlg.returnValue), { once: true });
+      dlg.returnValue = ''; dlg.showModal();
+    });
+  }
+
+  function askPin(title, hash, note) {
+    const dlg = $('pinDlg'), form = dlg.querySelector('form'), input = $('pinInput');
+    $('pinTitle').textContent = title;
+    $('pinNote').textContent = note || ''; $('pinNote').hidden = !note;
+    input.value = ''; $('pinErr').textContent = '';
+    return new Promise(res => {
+      const submit = e => {
+        e.preventDefault();
+        const r = tryPin(input.value, hash);
+        if (r.ok) return dlg.close('ok');
+        input.value = '';
+        $('pinErr').textContent = r.wait ? `Too many wrong tries. Wait ${r.wait} seconds, then try again.` : 'That PIN is not right.';
+      };
+      form.addEventListener('submit', submit);
+      dlg.addEventListener('close', () => { form.removeEventListener('submit', submit); res(dlg.returnValue === 'ok'); }, { once: true });
+      dlg.returnValue = ''; dlg.showModal(); input.focus();
+    });
+  }
+
+  /* ---------- pricing engine (integer cents) ---------- */
+  function promoHits(promo, code, item) {
+    const target = promo.applies_to;
+    if (target === 'all') return true;
+    if (has(DB.inventory, target)) return target === code;
+    return !!item.category && item.category.toLowerCase() === target.toLowerCase();
+  }
+  function priceCart() {
+    const inv = DB.inventory, promos = DB.promotions;
+    /* A coupon is live when it was scanned, or when its code is the barcode of an item in the cart. */
+    const live = Object.keys(promos).filter(k => promos[k].type !== 'clearance' && (coupons.has(k) || cart.has(k)));
+    const used = new Set(), lines = [];
+    for (const [code, qty] of cart) {
+      if (!has(inv, code)) continue;
+      const it = inv[code], orig = toCents(it.price), sale = toCents(it.sale_price);
+      let unit = orig, final = false; const why = [];
+      if (sale > 0 && sale < unit) { unit = sale; why.push('Sale price'); }
+      for (const p of Object.values(promos)) {
+        if (p.type !== 'clearance' || !promoHits(p, code, it)) continue;
+        final = true;                                   // clearance is a final price: coupons skip it
+        unit = Math.min(unit, orig - Math.round(orig * p.value / 100));
+      }
+      if (final) why.splice(0, why.length, 'Clearance');
+      else for (const k of live) {
+        const p = promos[k];
+        if (!promoHits(p, code, it)) continue;
+        if (p.type === 'percentage') unit -= Math.round(unit * p.value / 100);
+        else if (p.applies_to !== 'all') unit = Math.max(0, unit - toCents(p.value));   // fixed, per unit
+        else continue;                                                                  // fixed on the whole order: below
+        why.push(k); used.add(k);
+      }
+      lines.push({ barcode: code, name: it.name, qty, orig, unit, total: unit * qty, taxable: !!it.taxable, final, why });
+    }
+    const sum = (rows, f) => rows.reduce((s, r) => s + f(r), 0);
+    const open = lines.filter(l => !l.final), pool = sum(open, l => l.total);
+    let orderOff = 0;
+    for (const k of live) if (promos[k].type === 'fixed' && promos[k].applies_to === 'all' && pool > 0) { orderOff += toCents(promos[k].value); used.add(k); }
+    orderOff = Math.min(orderOff, pool);
+    const goods = sum(lines, l => l.total);
+    /* The order-level discount is shared between taxable and untaxed goods in proportion. */
+    const taxableOff = pool ? Math.round(orderOff * sum(open.filter(l => l.taxable), l => l.total) / pool) : 0;
+    const tax = Math.round((sum(lines.filter(l => l.taxable), l => l.total) - taxableOff) * (DB.settings.tax_rate_percent || 0) / 100);
+    return { lines, goods, orderOff, tax, total: goods - orderOff + tax, saved: sum(lines, l => (l.orig - l.unit) * l.qty) + orderOff, codes: [...used] };
+  }
+  const asRecord = p => ({
+    items: p.lines.map(l => ({ barcode: l.barcode, name: l.name, qty: l.qty, price: toMoney(l.orig), unit_price: toMoney(l.unit), total: toMoney(l.total), taxable: l.taxable })),
+    promotions: p.codes, subtotal: toMoney(p.goods), discount: toMoney(p.orderOff), tax: toMoney(p.tax), total: toMoney(p.total), saved: toMoney(p.saved)
+  });
+
+  /* ---------- receipt (one builder for the on-screen tape and the printer) ---------- */
+  const PAY_WORDS = { cash: 'Paid in cash', card_external: 'Paid by card', card_manual: 'Paid by card, standalone device', account: 'Charged to account' };
+  function receiptNode(rec, live) {
+    const head = (DB?.settings.receipt_header || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+    if (!head.length) head.push('Receipt');
+    const when = rec.ts ? new Date(rec.ts) : new Date();
+    const line = (label, value, cls) => h('div', { class: cls }, h('dt', { text: label }), h('dd', { text: value }));
+    const art = h('article', { class: 'rcpt' },
+      h('header', {}, head.map((t, i) => h('p', { class: i ? null : 'r-store', text: t }))),
+      h('p', { class: 'r-meta' }, h('span', { text: `${isoDate(when)} ${pad2(when.getHours())}:${pad2(when.getMinutes())}` }), h('span', { text: rec.id ? `No. ${rec.id}` : station })),
+      h('hr'));
+    const pay = rec.payment, totals = h('dl');
+    if (rec.type === 'account_payment') {
+      art.append(h('p', { text: 'Payment on account' }), h('p', { text: rec.customer_name || '' }), h('hr'));
+      totals.append(line('Amount paid', fmt(toCents(rec.total)), 'r-grand'));
+    } else {
+      if (!rec.items.length) art.append(h('p', { class: 'r-note r-quiet', text: 'Scan an item to begin.' }));
+      art.append(h('ul', {}, rec.items.map(it => h('li', {},
+        h('span', { class: 'r-name', text: it.name }),
+        h('span', { class: 'r-qty', text: `${it.qty} x` }),
+        h('span', { class: 'r-each' }, it.unit_price < it.price ? h('s', { text: fmt(toCents(it.price)) }) : null, h('span', { text: fmt(toCents(it.unit_price)) })),
+        h('span', { class: 'r-amt', text: fmt(toCents(it.total)) })))), h('hr'));
+      totals.append(line('Subtotal', fmt(toCents(rec.subtotal))));
+      if (rec.discount > 0) totals.append(line('Coupons', fmt(-toCents(rec.discount))));
+      totals.append(line('Tax', fmt(toCents(rec.tax))), line('Total', fmt(toCents(rec.total)), 'r-grand'));
+    }
+    art.append(totals);
+    if (rec.saved > 0) art.append(h('p', { class: 'r-note', text: `You saved ${fmt(toCents(rec.saved))}` }));
+    if (pay) {
+      const paid = h('dl');
+      art.append(h('hr'), paid);
+      paid.append(line(PAY_WORDS[pay.method] || 'Paid', pay.method === 'cash' ? fmt(toCents(pay.tendered)) : fmt(toCents(rec.total))));
+      if (pay.method === 'cash') paid.append(line('Change', fmt(toCents(pay.change))));
+      if (pay.provider) paid.append(line('Device', pay.provider));
+      if (pay.reference) paid.append(line('Reference', pay.reference));
+      if (rec.account) {
+        if (rec.type !== 'account_payment') paid.append(line('Account', rec.customer_name || ''));
+        paid.append(line('Balance now owed', fmt(toCents(rec.account.balance_after))));
+        if (rec.account.due_date) paid.append(line('Pay by', rec.account.due_date));
+      }
+      if (pay.test) art.append(h('p', { class: 'r-note', text: 'Test mode: no card was charged' }));
+      art.append(h('footer', { text: 'Thank you' }));
+    } else if (live && rec.items.length) {
+      art.append(h('p', { class: 'r-note r-quiet', text: 'Sale in progress' }));
+    }
+    return art;
+  }
+
+  /* Zero-click printing: fill the hidden frame and print it the moment a payment is final. */
+  const PAGE_CSS = `
+    html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+    body { width: 72mm; max-width: 100%; padding: 3mm 2mm 10mm; box-sizing: border-box; }
+    @media print { @page { margin: 0; } html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }`;
+  function printReceipt(rec) {
+    if (!DB.settings.printing_enabled) return;
+    try {
+      const frame = window.frames['print_frame'], doc = frame.document;
+      doc.open();
+      doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Receipt ${rec.id}</title><style>${PAGE_CSS}${$('rcptCss').textContent}</style></head><body></body></html>`);
+      doc.close();
+      doc.body.append(doc.importNode(receiptNode(rec), true));
+      frame.focus();
+      frame.print();
+    } catch (e) {
+      toast('The receipt could not be sent to the printer.', 'bad');
+    }
+  }
+
+  /* ---------- rendering ---------- */
+  function setQty(code, qty) {
+    if (busy) return;
+    if (qty <= 0) cart.delete(code); else cart.set(code, Math.min(qty, 999));
+    render();
+  }
+  function render() {
+    document.title = $('storeName').textContent = (DB?.settings.receipt_header || '').split(/\r?\n/)[0].trim() || 'Checkout';
+    Net.paint();
+    const rows = $('cartRows'), couponRow = $('couponRow');
+    if (!DB) {
+      rows.replaceChildren(h('li', { class: 'empty', text: 'This register is not set up yet. The owner loads the catalogue.' }));
+      couponRow.replaceChildren(); $('paper').replaceChildren();
+      for (const id of ['payCash', 'payCard', 'payAcct']) $(id).disabled = true;
+      return;
+    }
+    const p = priceCart();
+    rows.replaceChildren(...(p.lines.length ? p.lines.map(l => h('li', { class: 'row' + (l.barcode === flash ? ' is-new' : '') },
+      h('div', { class: 'row-name' }, h('span', { text: l.name }), l.why.length ? h('small', { text: l.why.join(', ') }) : null),
+      h('div', { class: 'stepper' },
+        h('button', { type: 'button', 'aria-label': `One fewer ${l.name}`, text: '\u2212', onclick: () => setQty(l.barcode, l.qty - 1) }),
+        h('output', { text: l.qty }),
+        h('button', { type: 'button', 'aria-label': `One more ${l.name}`, text: '+', onclick: () => setQty(l.barcode, l.qty + 1) })),
+      h('div', { class: 'price' }, l.unit < l.orig ? h('s', { text: fmt(l.orig) }) : null, h('span', { text: fmt(l.unit) })),
+      h('div', { class: 'row-total', text: fmt(l.total) }),
+      h('button', { type: 'button', class: 'row-x', 'aria-label': `Remove ${l.name}`, text: '\u00d7', onclick: () => setQty(l.barcode, 0) })))
+      : [h('li', { class: 'empty', text: lastSale ? 'Sale complete. Scan the next customer\u2019s first item.' : 'Scan an item to begin.' })]));
+    if (flash) rows.querySelector('.is-new')?.scrollIntoView({ block: 'nearest' });
+    flash = null;
+    couponRow.replaceChildren(...[...coupons].map(k => h('li', {}, k, h('button', { type: 'button', 'aria-label': `Remove coupon ${k}`, text: '\u00d7', onclick: () => { coupons.delete(k); render(); } }))));
+
+    $('tSub').textContent = fmt(p.goods);
+    $('tOffRow').hidden = !p.orderOff; $('tOff').textContent = fmt(-p.orderOff);
+    $('tTaxLabel').textContent = DB.settings.tax_rate_percent ? `Tax (${DB.settings.tax_rate_percent}%)` : 'Tax';
+    $('tTax').textContent = fmt(p.tax); $('tTotal').textContent = fmt(p.total);
+    $('tSaved').hidden = !p.saved; $('tSaved').textContent = `Saving ${fmt(p.saved)} on this sale`;
+
+    /* account strip and the frozen-account lock */
+    const c = customer && has(DB.customers, customer) ? DB.customers[customer] : null;
+    if (!c) customer = null;
+    const owed = c ? toCents(c.balance_due) : 0, frozen = !!c && isFrozen(c);
+    $('acctInfo').replaceChildren(...(c ? [h('div', { class: 'acct-card' },
+      h('strong', { text: c.name }), frozen ? h('span', { class: 'pill', text: 'Frozen' }) : null,
+      h('span', { class: 'owes', text: owed > 0 ? `Owes ${fmt(owed)}${c.due_date ? `, due ${c.due_date}` : ''}` : 'Nothing owed' }),
+      owed > 0 ? h('button', { type: 'button', class: 'btn small', text: 'Collect balance', onclick: collectBalance }) : null,
+      h('button', { type: 'button', class: 'btn small ghost', text: 'Remove customer', onclick: () => { customer = null; $('phone').value = ''; render(); } }))] : []));
+    $('lock').hidden = !frozen;
+    if (frozen) $('lockMsg').textContent = owed > 0
+      ? `${c.name}\u2019s account is frozen with ${fmt(owed)} owing${c.due_date ? `, due ${c.due_date}` : ''}. Collect the balance to continue this sale.`
+      : `${c.name}\u2019s account was frozen by the owner. Remove the customer to sell without the account.`;
+
+    const canPay = p.lines.length > 0 && !busy && !frozen;
+    $('payCash').disabled = $('payCard').disabled = $('payAcct').disabled = !canPay;
+    $('payAcct').hidden = !DB.settings.credit_allowed_globally;
+    $('manualToggle').setAttribute('aria-checked', String(manualCard));
+    const map = LS.get(K_DEVICE), prof = map && has(DB.payment_devices.profiles, map.profile_id) ? DB.payment_devices.profiles[map.profile_id] : null;
+    $('cardHint').textContent = manualCard ? 'Amount keyed on the standalone device' : prof ? `Pushes to ${prof.label}` : 'Asks for the device on first use';
+
+    $('paper').replaceChildren(lastSale && !p.lines.length ? receiptNode(lastSale) : receiptNode(asRecord(p), true));
+  }
+
+  /* ---------- scanning ---------- */
+  const scan = $('scan'), phone = $('phone');
+  function handleScan(code) {
+    if (!code || busy) return;
+    if (!DB) { beep(false); return toast('This register is not set up yet.', 'bad'); }
+    const promoKey = has(DB.promotions, code) ? code : Object.keys(DB.promotions).find(k => k.toLowerCase() === code.toLowerCase());
+    if (has(DB.inventory, code)) {
+      lastSale = null;
+      const qty = (cart.get(code) || 0) + 1, it = DB.inventory[code];
+      cart.set(code, qty); flash = code; beep(true);
+      if (it.stock < qty) toast(`${it.name}: the stock count shows ${Math.max(0, it.stock)} left.`);
+    } else if (promoKey) {
+      beep(true);
+      if (DB.promotions[promoKey].type === 'clearance') toast('Clearance prices apply on their own. No code needed.');
+      else if (coupons.has(promoKey)) toast(`${promoKey} is already on this sale.`);
+      else { coupons.add(promoKey); toast(`Coupon ${promoKey} added.`, 'good'); }
+    } else {
+      beep(false); toast(`Nothing on file for \u201c${code}\u201d.`, 'bad');
+    }
+    render();
+  }
+  const takeScan = () => { const code = scan.value.trim(); scan.value = ''; $('scanEcho').textContent = ''; handleScan(code); };
+  scan.addEventListener('input', () => { $('scanEcho').textContent = scan.value; });
+  scan.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || (e.key === 'Tab' && scan.value)) { e.preventDefault(); takeScan(); }
+    else if (e.key === 'Escape') { scan.value = ''; $('scanEcho').textContent = ''; }
+  });
+
+  /* Keep the keyboard on the scanner box unless a dialog or the phone field has it. */
+  function refocus() {
+    const a = document.activeElement;
+    if (!modalOpen() && !a?.hasAttribute?.('data-keepfocus')) {
+      if (a !== scan) scan.focus({ preventScroll: true });
+      /* A dialog closed by a mouse click hands focus back with no caret, and typed characters are then dropped.
+         Re-seating the caret each time keeps the next scan from being lost. */
+      try { scan.setSelectionRange(scan.value.length, scan.value.length); } catch { /* not focusable right now */ }
+    }
+    const ready = document.activeElement === scan && document.hasFocus();
+    document.body.classList.toggle('scan-ready', ready);
+    $('scanState').textContent = ready ? 'Ready to scan' : document.activeElement === phone ? 'Typing a phone number. Press Enter when done.' : modalOpen() ? 'Finish the open step first' : 'Click this window to scan';
+  }
+  for (const ev of ['focusin', 'focusout', 'pointerup']) document.addEventListener(ev, () => setTimeout(refocus, 0));
+  document.addEventListener('close', () => { if (document.activeElement === phone) phone.blur(); setTimeout(refocus, 0); }, true);
+  window.addEventListener('focus', refocus); window.addEventListener('blur', () => setTimeout(refocus, 0));
+  setInterval(refocus, 2000);
+  /* Safety net: a key that lands anywhere else (a button that was just clicked, the page body) still goes to the
+     scanner box, so no character of a barcode is lost and a scanner's Enter can never press an on-screen button. */
+  document.addEventListener('keydown', e => {
+    if (e.target === scan || modalOpen() || e.target?.hasAttribute?.('data-keepfocus') || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key.length === 1) { e.preventDefault(); scan.focus({ preventScroll: true }); scan.value += e.key; $('scanEcho').textContent = scan.value; }
+    else if (e.key === 'Enter') { e.preventDefault(); scan.focus({ preventScroll: true }); takeScan(); }
+  }, true);
+
+  /* ---------- customer account ---------- */
+  let phoneIdle;
+  async function attach(raw) {
+    const key = phoneKey(raw);
+    if (!key) { customer = null; return render(); }
+    if (!DB || !has(DB.customers, key)) { customer = null; beep(false); toast(`No account for ${raw.trim()}. The owner adds accounts.`, 'bad'); return render(); }
+    customer = key; phone.value = key;
+    if (needsFreeze(DB)) { try { DB = await Store.update(freezeOverdue); } catch { /* shown as frozen from the dates either way */ } }
+    render();
+  }
+  phone.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); attach(phone.value); phone.blur(); }
+    else if (e.key === 'Escape') { phone.value = customer || ''; phone.blur(); }
+  });
+  phone.addEventListener('focus', () => phone.select());   // typing replaces whatever number was there
+  phone.addEventListener('input', () => { clearTimeout(phoneIdle); phoneIdle = setTimeout(() => phone.blur(), 15000); });
+
+  /* ---------- tender: cash ---------- */
+  function cashDialog(due) {
+    const dlg = $('cashDlg'), form = dlg.querySelector('form'), input = $('cashIn');
+    const show = () => { const t = toCents(input.value); $('cashChange').textContent = t >= due ? fmt(t - due) : '\u2013'; $('cashErr').textContent = ''; };
+    const dollars = due / 100, quick = [...new Set([due, ...[1, 5, 10, 20, 50, 100].map(n => Math.ceil(dollars / n) * n * 100)])].filter(v => v >= due).slice(0, 5);
+    $('cashDue').textContent = fmt(due); input.value = (due / 100).toFixed(2);
+    $('cashQuick').replaceChildren(...quick.map((v, i) => h('button', { type: 'button', class: 'btn small', text: i ? fmt(v) : 'Exact', onclick: () => { input.value = (v / 100).toFixed(2); show(); input.focus(); } })));
+    show();
+    return new Promise(res => {
+      let out = null;
+      const submit = e => {
+        e.preventDefault();
+        const t = toCents(input.value);
+        if (!(t >= due)) return void ($('cashErr').textContent = `Cash received must be at least ${fmt(due)}.`);
+        if (t - due > 50000) return void ($('cashErr').textContent = 'That is more than $500 over the total. Check the amount.');
+        out = { method: 'cash', tendered: toMoney(t), change: toMoney(t - due) }; dlg.close('ok');
+      };
+      form.addEventListener('submit', submit); input.addEventListener('input', show);
+      dlg.addEventListener('close', () => { form.removeEventListener('submit', submit); input.removeEventListener('input', show); res(out); }, { once: true });
+      dlg.showModal(); input.focus(); input.select();
+    });
+  }
+
+  /* ---------- tender: card through external hardware ---------- */
+  const APPROVED = new Set(['approved', 'approve', 'success', 'succeeded', 'ok', 'paid', 'captured', 'complete', 'completed']);
+  const DECLINED = new Set(['declined', 'decline', 'failed', 'failure', 'error', 'cancelled', 'canceled', 'timeout', 'rejected', 'void', 'voided']);
+  /* Reads a device reply. Returns null when the message is not a final answer (for example "pending"). */
+  function verdict(payload) {
+    let o = payload;
+    if (typeof o === 'string') { const t = o.trim(); try { o = JSON.parse(t); } catch { o = { status: t }; } }
+    if (!o || typeof o !== 'object') return null;
+    let s = o.status ?? o.result ?? o.state ?? o.outcome;
+    if (s == null && typeof o.approved === 'boolean') s = o.approved ? 'approved' : 'declined';
+    if (s == null && typeof o.success === 'boolean') s = o.success ? 'approved' : 'declined';
+    s = String(s ?? '').toLowerCase().trim();
+    if (APPROVED.has(s)) return { approved: true, reference: String(o.reference ?? o.transaction_id ?? o.auth_code ?? o.id ?? '').slice(0, 40) };
+    if (DECLINED.has(s)) return { approved: false, message: `The card device answered \u201c${String(o.message ?? o.reason ?? s).slice(0, 120)}\u201d.` };
+    return null;
+  }
+  const aborted = () => new DOMException('Aborted', 'AbortError');
+
+  async function pushHttp(url, body, signal) {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal, cache: 'no-store' });
+    const v = verdict(await res.text());
+    if (!res.ok) return { approved: false, message: v && !v.approved ? v.message : `The card device answered with error ${res.status}.` };
+    return v || { approved: false, message: 'The card device replied, but not with an approval this register recognises.' };
+  }
+  function pushSocket(url, body, signal) {
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(url);
+      const end = (settle, value) => { signal.removeEventListener('abort', onAbort); try { ws.close(); } catch { /* closed */ } settle(value); };
+      const onAbort = () => end(reject, aborted());
+      signal.addEventListener('abort', onAbort);
+      ws.onopen = () => ws.send(JSON.stringify(body));
+      ws.onmessage = ev => { const v = typeof ev.data === 'string' ? verdict(ev.data) : null; if (v) end(resolve, v); };
+      ws.onerror = () => end(reject, new Error('unreachable'));
+      ws.onclose = () => end(reject, new Error('The card device closed the connection before answering.'));
+    });
+  }
+  async function pushSerial(endpoint, body, signal) {
+    if (!('serial' in navigator)) throw new Error('This browser cannot use serial ports. Use Chrome or Edge, or key the amount on the device.');
+    const [port] = await navigator.serial.getPorts();
+    if (!port) throw new Error('No serial port is authorised on this register yet.');
+    await port.open({ baudRate: Number((/@(\d+)/.exec(endpoint) || [])[1]) || 9600 });
+    let reader;
+    try {
+      const writer = port.writable.getWriter();
+      await writer.write(new TextEncoder().encode(JSON.stringify(body) + '\n')); writer.releaseLock();
+      reader = port.readable.getReader();
+      signal.addEventListener('abort', () => reader.cancel().catch(() => {}), { once: true });
+      const dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        for (let nl; (nl = buf.indexOf('\n')) >= 0;) { const v = verdict(buf.slice(0, nl)); buf = buf.slice(nl + 1); if (v) return v; }
+      }
+      throw signal.aborted ? aborted() : new Error('The serial card device stopped answering.');
+    } finally { try { reader?.releaseLock(); } catch { /* released */ } try { await port.close(); } catch { /* closed */ } }
+  }
+  const simulate = (endpoint, signal) => new Promise((resolve, reject) => {
+    const t = setTimeout(() => resolve(/decline/i.test(endpoint) ? { approved: false, message: 'The simulator declined the card.' } : { approved: true, reference: 'SIM' + String(Date.now()).slice(-6) }), 2200);
+    signal.addEventListener('abort', () => { clearTimeout(t); reject(aborted()); }, { once: true });
+  });
+
+  /* Pushes the exact amount to the device and holds the "waiting" screen until it answers. */
+  async function pushToDevice(profile, endpoint, cents, ref) {
+    const dlg = $('waitDlg'), ctl = new AbortController(), sim = /^sim:\/\//i.test(endpoint);
+    const body = { type: 'sale', amount: (cents / 100).toFixed(2), amount_cents: cents, currency: 'USD', reference: ref, station };
+    $('waitAmt').textContent = fmt(cents); $('waitDev').textContent = `Sent to ${profile.label}. Ask the customer to pay on the card device.`; $('waitSim').hidden = !sim;
+    let why = '';
+    const cancel = () => { why = 'cancel'; ctl.abort(); }, block = e => e.preventDefault();
+    const timer = setTimeout(() => { why = 'timeout'; ctl.abort(); }, HARDWARE_TIMEOUT_MS);
+    $('waitCancel').addEventListener('click', cancel); dlg.addEventListener('cancel', block);
+    dlg.showModal();
+    try {
+      if (sim) return { ...await simulate(endpoint, ctl.signal), test: true };
+      if (profile.connection_type === 'SERIAL_COM') return await pushSerial(endpoint, body, ctl.signal);
+      if (/^wss?:\/\//i.test(endpoint)) return await pushSocket(endpoint, body, ctl.signal);
+      return await pushHttp(/^https?:\/\//i.test(endpoint) ? endpoint : 'http://' + endpoint, body, ctl.signal);
+    } catch (e) {
+      if (why === 'cancel') return { approved: false, cancelled: true };
+      if (why === 'timeout') return { approved: false, message: 'The card device did not answer within 2 minutes.' };
+      const unreachable = e instanceof TypeError || e.message === 'unreachable' || e.name === 'SyntaxError';
+      return { approved: false, message: unreachable ? `This register could not reach the card device at ${endpoint}. Check its cable or network, and that it accepts requests from this register.` : e.message };
+    } finally {
+      clearTimeout(timer); $('waitCancel').removeEventListener('click', cancel); dlg.removeEventListener('cancel', block); dlg.close();
+    }
+  }
+
+  /* One-time station mapping: which profile and address this computer pushes to. Cached in localStorage. */
+  function mapDialog() {
+    const dlg = $('mapDlg'), form = dlg.querySelector('form'), list = $('mapList'), endpoint = $('mapEndpoint');
+    const profiles = DB.payment_devices.profiles, saved = LS.get(K_DEVICE);
+    const first = saved && has(profiles, saved.profile_id) ? saved.profile_id : has(profiles, DB.payment_devices.ACTIVE_PROFILE_ID) ? DB.payment_devices.ACTIVE_PROFILE_ID : Object.keys(profiles)[0];
+    const chosen = () => form.elements.mapPick.value;
+    const serialState = async () => { $('mapSerialState').textContent = 'serial' in navigator ? ((await navigator.serial.getPorts()).length ? 'A port is authorised.' : 'No port authorised yet.') : 'This browser cannot use serial ports.'; };
+    const sync = () => {
+      const p = profiles[chosen()];
+      endpoint.value = saved && saved.profile_id === chosen() && saved.endpoint ? saved.endpoint : p.endpoint_address;
+      $('mapSerial').hidden = p.connection_type !== 'SERIAL_COM'; $('mapErr').textContent = '';
+      if (p.connection_type === 'SERIAL_COM') serialState();
+    };
+    list.replaceChildren(...Object.entries(profiles).map(([id, p]) => h('label', { class: 'map-opt' },
+      h('input', { type: 'radio', name: 'mapPick', value: id, checked: id === first, onchange: sync }),
+      h('strong', { text: p.label + (id === DB.payment_devices.ACTIVE_PROFILE_ID ? ' (store default)' : '') }),
+      h('span', { text: `${p.provider_name || 'Card device'}, ${p.connection_type === 'SERIAL_COM' ? 'serial port' : 'local network'}, ${p.endpoint_address || 'no address set'}` }))));
+    sync();
+    $('mapGrant').onclick = async () => { try { await navigator.serial.requestPort(); } catch { /* picker dismissed */ } serialState(); };
+    return new Promise(res => {
+      let out = null;
+      const submit = async e => {
+        e.preventDefault();
+        const id = chosen(), p = profiles[id], addr = endpoint.value.trim();
+        if (!addr) return void ($('mapErr').textContent = 'Enter the device address.');
+        if (p.connection_type === 'SERIAL_COM' && !('serial' in navigator && (await navigator.serial.getPorts()).length)) return void ($('mapErr').textContent = 'Choose the serial port this device is plugged into.');
+        out = { profile_id: id, endpoint: addr === p.endpoint_address ? '' : addr };
+        LS.set(K_DEVICE, out); dlg.close('ok');
+      };
+      form.addEventListener('submit', submit);
+      dlg.addEventListener('close', () => { form.removeEventListener('submit', submit); res(out); }, { once: true });
+      dlg.showModal();
+    });
+  }
+
+  async function manualCapture(cents) {
+    const ok = await ask({
+      title: 'Manual Standalone Card Device Capture',
+      body: [h('p', { class: 'big', text: fmt(cents) }), 'Key this amount into the card device. Continue only after the device shows the payment as approved.'],
+      buttons: [{ label: 'Cancel', cancel: true }, { label: 'Approved on device', value: 'yes', kind: 'primary' }]
+    });
+    return ok === 'yes' ? { method: 'card_manual' } : null;
+  }
+  async function cardExternal(cents, ref) {
+    for (;;) {
+      const profiles = DB.payment_devices.profiles;
+      if (!Object.keys(profiles).length) {
+        const pick = await ask({ title: 'No card device is linked', body: 'The owner has not added a card device to this register\u2019s database.', buttons: [{ label: 'Cancel', cancel: true }, { label: 'Manual Standalone Card Device Capture', value: 'manual', kind: 'primary' }] });
+        return pick === 'manual' ? manualCapture(cents) : null;
+      }
+      let map = LS.get(K_DEVICE);
+      if (!map || !has(profiles, map.profile_id)) { map = await mapDialog(); if (!map) return null; render(); }
+      const profile = profiles[map.profile_id];
+      const v = await pushToDevice(profile, map.endpoint || profile.endpoint_address, cents, ref);
+      if (v.approved) return { method: 'card_external', profile_id: map.profile_id, provider: profile.provider_name || profile.label, reference: v.reference || '', ...(v.test ? { test: true } : {}) };
+      if (v.cancelled) { toast('Card payment cancelled. Check the card device did not take the card.'); return null; }
+      const next = await ask({ title: 'The card payment did not go through', body: v.message, buttons: [{ label: 'Cancel payment', cancel: true }, { label: 'Manual Standalone Card Device Capture', value: 'manual' }, { label: 'Send again', value: 'retry', kind: 'primary' }] });
+      if (next === 'manual') return manualCapture(cents);
+      if (next !== 'retry') return null;
+    }
+  }
+  const tender = (method, cents, ref) => method === 'cash' ? cashDialog(cents) : manualCard ? manualCapture(cents) : cardExternal(cents, ref);
+
+  /* After a payment is taken, a failed save must never pass silently. */
+  const saveFailed = (what, e) => ask({ title: 'Payment taken, but not saved', body: [`${what} could not be written to this register: ${e.message}`, 'Write the details down for the owner before continuing.'], buttons: [{ label: 'I have noted it', value: 'ok', kind: 'primary' }] });
+
+  /* ---------- checkout ---------- */
+  async function checkout(method) {
+    if (busy || !DB || modalOpen()) return;
+    const p = priceCart();
+    if (!p.lines.length) return;
+    const c = customer && has(DB.customers, customer) ? DB.customers[customer] : null;
+    if (c && isFrozen(c)) return;
+    if (method === 'account') {
+      if (!DB.settings.credit_allowed_globally) return;
+      if (!c) { toast('Type the customer\u2019s phone number first, then Charge to Account.', 'bad'); phone.focus(); return; }
+    }
+    busy = true; render();
+    try {
+      const id = newId();
+      let payment;
+      if (method === 'account') {
+        const owed = toCents(c.balance_due);
+        const due = owed > 0 && c.due_date ? c.due_date : addDays(isoDate(), DB.settings.global_credit_duration_days);
+        const ok = await ask({ title: `Charge ${fmt(p.total)} to ${c.name}?`, body: `Their balance becomes ${fmt(owed + p.total)}, to be paid by ${due}.`, buttons: [{ label: 'Cancel', cancel: true }, { label: 'Charge to Account', value: 'yes', kind: 'primary' }] });
+        payment = ok === 'yes' ? { method: 'account' } : null;
+      } else if (p.total === 0) payment = { method: 'cash', tendered: 0, change: 0 };   // nothing to collect
+      else payment = await tender(method, p.total, id);
+      if (!payment) return;
+
+      const sale = { id, ts: new Date().toISOString(), type: 'sale', station, ...asRecord(p), payment, customer, customer_name: c?.name || '' };
+      try {
+        DB = await Store.update(core => {
+          const acct = payment.method !== 'account' ? undefined : has(core.customers, customer) ? core.customers[customer] : null;
+          if (acct === null || (acct && isFrozen(acct))) throw new Error('this account can no longer be charged');
+          Core.applyRecord(core, sale);
+          if (acct) sale.account = { balance_after: acct.balance_due, due_date: acct.due_date };
+          Net.track(core, sale.id);
+        }, [sale]);
+      } catch (e) {
+        if (payment.method === 'account') { toast(`Not charged: ${e.message}.`, 'bad'); return; }
+        await saveFailed(`Sale ${id} for ${fmt(p.total)}`, e); return;
+      }
+      cart.clear(); coupons.clear(); customer = null; phone.value = ''; lastSale = sale;
+      Net.push();
+      busy = false; render();
+      printReceipt(sale);
+      beep(true);
+      toast(payment.method === 'cash' && payment.change > 0 ? `Sale complete. Change due ${fmt(toCents(payment.change))}.` : 'Sale complete.', 'good');
+    } finally { busy = false; render(); }
+  }
+
+  async function collectBalance() {
+    if (busy || !DB || !customer || !has(DB.customers, customer)) return;
+    const c = DB.customers[customer], owed = toCents(c.balance_due);
+    if (owed <= 0) return;
+    busy = true; render();
+    try {
+      const input = h('input', { id: 'acctAmt', inputmode: 'decimal', autocomplete: 'off', value: (owed / 100).toFixed(2) });
+      const how = await ask({ title: `Collect balance from ${c.name}`, body: [`${fmt(owed)} is owing${c.due_date ? `, due ${c.due_date}` : ''}.`, h('label', { for: 'acctAmt', text: 'Amount to collect now' }), input], buttons: [{ label: 'Cancel', cancel: true }, { label: 'Cash', value: 'cash', kind: 'primary' }, { label: 'Card / External Device', value: 'card' }] });
+      if (!how) return;
+      const amt = toCents(input.value);
+      if (!(amt > 0) || amt > owed) { toast(`Enter an amount from $0.01 to ${fmt(owed)}.`, 'bad'); return; }
+      const id = newId(), payment = await tender(how, amt, id);
+      if (!payment) return;
+      const rec = { id, ts: new Date().toISOString(), type: 'account_payment', station, total: toMoney(amt), payment, customer, customer_name: c.name };
+      try {
+        DB = await Store.update(core => {
+          const acct = has(core.customers, customer) ? core.customers[customer] : null;
+          if (!acct) throw new Error('this account no longer exists');
+          Core.applyRecord(core, rec);
+          rec.account = { balance_after: acct.balance_due, due_date: acct.due_date };
+          Net.track(core, rec.id);
+        }, [rec]);
+      } catch (e) { await saveFailed(`Payment ${id} of ${fmt(amt)} from ${c.name}`, e); return; }
+      if (!cart.size) lastSale = rec;
+      Net.push();
+      busy = false; render();
+      printReceipt(rec);
+      toast(`Collected ${fmt(amt)} from ${c.name}.`, 'good');
+    } finally { busy = false; render(); }
+  }
+
+  $('payCash').addEventListener('click', () => checkout('cash'));
+  $('payCard').addEventListener('click', () => checkout('card'));
+  $('payAcct').addEventListener('click', () => checkout('account'));
+  $('manualToggle').addEventListener('click', () => { manualCard = !manualCard; LS.set(K_MANUAL, manualCard); render(); });
+
+  /* ---------- stealth file sync: drop inventory_db.json anywhere on the screen ---------- */
+  const pruneCart = () => {
+    for (const code of [...cart.keys()]) if (!has(DB.inventory, code)) cart.delete(code);
+    for (const k of [...coupons]) if (!has(DB.promotions, k)) coupons.delete(k);
+  };
+  async function ingest(files) {
+    if ($('hostDlg').open) $('hostDlg').close('');
+    if (busy || modalOpen()) return toast('Finish the open payment first, then drop the file again.', 'bad');
+    let incoming;
+    try { incoming = await readDbFiles(files); } catch (e) { return toast(e.message, 'bad'); }
+    const next = incoming.db, gate = DB?.settings.pin_hash || next.settings.pin_hash;
+    if (!gate) return toast('That file carries no owner PIN. Export it from the owner manager first.', 'bad');
+    const inFile = new Set(next.sales_history.map(s => s.id));
+    const unsent = DB ? (await Store.allSales()).filter(s => !inFile.has(s.id)).length : 0;
+    let note = unsent ? `This register has ${unsent} sale${unsent === 1 ? '' : 's'} the file does not include. Its stock counts and account balances will replace the register\u2019s. The sales records are kept.` : '';
+    if (DB && Core.stampOf(next) < Core.stampOf(DB)) note = `This file is older than the data this register already has. ${note}`;
+    if (!(await askPin('Enter the owner PIN to load this database', gate, note))) return;
+    if (!next.settings.pin_hash) next.settings.pin_hash = gate;
+    try {
+      if (DB?._pending?.length) {                        // sales the host has not confirmed stay queued, with their effects
+        const mine = new Map((await Store.allSales()).map(r => [r.id, r]));
+        next._pending = DB._pending.filter(id => mine.has(id));
+        for (const id of next._pending) Core.applyRecord(next, mine.get(id));
+      }
+      freezeOverdue(next);
+      DB = await Store.replace(next);
+    } catch (e) { return toast(`The database could not be saved: ${e.message}`, 'bad'); }
+    pruneCart(); render(); Net.resync();
+    const n = Object.keys(DB.inventory).length;
+    toast(`Database loaded: ${n} item${n === 1 ? '' : 's'}${incoming.skipped.length ? `, ${incoming.skipped.length} bad rows skipped` : ''}.`, 'good');
+  }
+  const carriesFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+  let dragDepth = 0;
+  window.addEventListener('dragenter', e => { if (carriesFiles(e)) { e.preventDefault(); dragDepth++; $('dropVeil').hidden = false; } });
+  window.addEventListener('dragover', e => { if (carriesFiles(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+  window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('dropVeil').hidden = true; } });
+  window.addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; $('dropVeil').hidden = true; if (e.dataTransfer?.files?.length) ingest(e.dataTransfer.files); });
+
+  /* ---------- owner-only keyboard actions (no visible controls) ---------- */
+  async function ownerAction(kind) {
+    if (kind === 'host') {
+      if (busy || modalOpen()) return;
+      if (DB?.settings.pin_hash && !(await askPin('Enter the owner PIN to change this register\u2019s host', DB.settings.pin_hash))) return;
+      return void Net.choose();
+    }
+    if (!DB?.settings.pin_hash || busy || modalOpen()) return;
+    if (kind === 'export') {
+      if (!(await askPin('Enter the owner PIN to export this register', DB.settings.pin_hash))) return;
+      download(compile(DB, await Store.allSales()), 'inventory_db.json');
+      toast('Exported inventory_db.json.', 'good');
+    } else {
+      if (!Object.keys(DB.payment_devices.profiles).length) return toast('No card devices are in this register\u2019s database.', 'bad');
+      if (!(await askPin('Enter the owner PIN to change this register\u2019s card device', DB.settings.pin_hash))) return;
+      if (await mapDialog()) { toast('Card device saved for this register.', 'good'); render(); }
+    }
+  }
+  window.addEventListener('keydown', e => {
+    if (e.altKey && e.shiftKey && e.code === 'KeyE') { e.preventDefault(); ownerAction('export'); }
+    else if (e.altKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); ownerAction('device'); }
+    else if (e.altKey && e.shiftKey && e.code === 'KeyH') { e.preventDefault(); ownerAction('host'); }
+    else if (['F2', 'F3', 'F4'].includes(e.key) && !e.altKey && !e.ctrlKey) { e.preventDefault(); if (!modalOpen()) checkout({ F2: 'cash', F3: 'card', F4: 'account' }[e.key]); }
+  });
+
+  /* ---------- Wi-Fi link to the host ----------
+     Invariant: this register's data = the last copy it took from the host (or a file) + the effects of every sale in
+     _pending. A sale leaves _pending only when the host confirms it has applied it. */
+  const K_LINK = 'pos.link';
+  const Net = (() => {
+    const { Link } = Core;
+    let link = LS.get(K_LINK);          // null: never asked | { skip: true } | { host: { id, name }, key, synced }
+    let conn = null, stopSub = null, subKey = '', subReady = Promise.resolve(), tries = 0, retry = null;
+    let onAnswer = null, onHostSeen = null, onJoin = null;
+    const reply = 'gpos-r-' + Link.rid(12);
+    const hostedHere = () => LS.get('pos.host')?.enabled === true;      // the owner manager in this same browser is the host
+    const linked = () => !!link?.key && !hostedHere();
+    const waiting = () => DB?._pending?.length || 0;
+    const bare = core => { const { _pending, ...rest } = core || {}; return rest; };
+    const queued = async () => { const ids = new Set(DB?._pending || []); return ids.size ? (await Store.allSales()).filter(r => ids.has(r.id)) : []; };
+
+    function listen() {
+      const topics = [reply, ...(link?.key ? ['gpos-u-' + link.host.id] : [])], key = topics.join();
+      if (key === subKey) return subReady;
+      stopSub?.(); subKey = key;
+      return (subReady = new Promise(res => {
+        const giveUp = setTimeout(res, 5000);
+        stopSub = Link.subscribe(topics, m => {
+          if (m.t === 'answer' && typeof m.sdp === 'string') onAnswer?.(m.sdp);
+          else if (m.t === 'host' && m.id) onHostSeen?.(m);
+          else if (m.t === 'up' && linked() && !conn) { tries = 0; connect(link.host.id); }     // the host just came back
+        }, up => { if (up) { clearTimeout(giveUp); res(); } });
+      }));
+    }
+    function paint() {
+      const lamp = $('linkLamp'), n = waiting(), live = !!conn?.ready;
+      lamp.hidden = !linked();
+      if (!linked()) return;
+      lamp.classList.toggle('away', !live);
+      lamp.textContent = live ? `Linked to ${link.host.name}` : `Host out of reach${n ? `, ${n} sale${n === 1 ? '' : 's'} waiting` : ''}`;
+    }
+    function hangUp() {                                    // drop the current connection without scheduling a retry
+      const c = conn; conn = null; onAnswer = null; clearTimeout(retry);
+      if (c) { clearTimeout(c.timer); c.wire?.close(); try { c.pc?.close(); } catch { /* closed */ } }
+    }
+    function lost(c) {
+      if (conn !== c) return;
+      hangUp(); c.onEnd?.(); paint();
+      if (linked()) retry = setTimeout(() => connect(link.host.id), [5, 60, 300, 900, 3600][Math.min(tries++, 4)] * 1000);
+    }
+    async function connect(hostId, code, onEnd) {
+      if (conn || hostedHere()) return;
+      clearTimeout(retry);
+      const c = conn = { hostId, nonce: Link.rid(8), ready: false, onEnd };
+      try {
+        await listen();
+        const o = await Link.offer();
+        if (conn !== c) return void o.pc.close();
+        c.pc = o.pc;
+        c.wire = Link.wire(o.dc, m => { fromHost(c, m).catch(() => {}); }, () => lost(c));
+        o.dc.onopen = () => { c.open = true; c.wire.send({ t: 'hello', station, nonce: c.nonce, code, linked: !!link?.key && link.host.id === hostId }); };
+        o.pc.onconnectionstatechange = () => { if (o.pc.connectionState === 'failed') lost(c); };
+        onAnswer = sdp => { if (conn === c) o.pc.setRemoteDescription({ type: 'answer', sdp }).catch(() => lost(c)); };
+        c.timer = setTimeout(() => { if (!c.open) lost(c); }, 20000);
+        await Link.publish('gpos-h-' + hostId, { t: 'offer', station, reply, sdp: o.sdp });
+      } catch { lost(c); }
+    }
+    async function fromHost(c, m) {
+      if (conn !== c) return;
+      if (m.t === 'wait') onJoin?.('wait');
+      else if (m.t === 'refused') { onJoin?.('refused'); c.wire.close(); }
+      else if (m.t === 'linked' && typeof m.key === 'string' && m.host?.id === c.hostId) {
+        link = { host: { id: c.hostId, name: String(m.host.name || 'Host').slice(0, 40) }, key: m.key, synced: null };
+        LS.set(K_LINK, link); c.trusted = true;
+      } else if (m.t === 'welcome') {
+        if (!link?.key || m.proof !== Link.proof(link.key, c.nonce, 'host')) return c.wire.close();     // not the host this register was linked to
+        c.trusted = true; c.wire.send({ t: 'auth', proof: Link.proof(link.key, String(m.nonce), 'register') });
+      } else if (m.t === 'ready') {
+        if (!c.trusted || link?.host.id !== c.hostId) return c.wire.close();
+        c.ready = true; tries = 0; listen(); onJoin?.('linked'); paint();
+        c.wire.send({ t: 'state', stamp: DB?.settings.last_modified || '', pending: await queued(), first: link.synced !== c.hostId });
+      } else if (!c.ready) return;
+      else if (m.t === 'need') {
+        const sales = await Store.allSales();
+        c.wire.send(m.what === 'full' ? { t: 'full', core: bare(DB), sales, pending: DB?._pending || [] } : { t: 'history', sales });
+        link.synced = c.hostId; LS.set(K_LINK, link);
+      } else if (m.t === 'core') await takeCore(m);
+    }
+    /* The host's copy replaces this register's, then any sale the host has not confirmed is replayed on top. */
+    async function takeCore(m) {
+      const { sales_history, ...fresh } = Core.normalizeDb({ ...m.core, sales_history: [] }).db;
+      const confirmed = new Set(Array.isArray(m.acked) ? m.acked : []);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const mine = new Map((await Store.allSales()).map(r => [r.id, r]));
+        try {
+          DB = await Store.update(core => {
+            const still = (core._pending || []).filter(id => !confirmed.has(id));
+            if (still.some(id => !mine.has(id))) throw new Error('again');       // a sale landed while we were reading
+            for (const k of Object.keys(core)) delete core[k];
+            Object.assign(core, structuredClone(fresh));
+            for (const id of still) Core.applyRecord(core, mine.get(id));
+            freezeOverdue(core);
+            core._pending = still;
+          });
+          break;
+        } catch (e) { if (e.message !== 'again') throw e; }
+      }
+      pruneCart(); render();
+    }
+    const track = (core, id) => { if (linked()) (core._pending ||= []).push(id); };
+    async function push() { paint(); if (conn?.ready && waiting()) conn.wire.send({ t: 'sales', pending: await queued() }); }
+    async function resync() { if (conn?.ready) conn.wire.send({ t: 'state', stamp: DB?.settings.last_modified || '', pending: await queued(), first: false }); }
+
+    /* First-run step, like the card device prompt: the employee picks the host by name and the owner allows it there. */
+    function choose() {
+      const dlg = $('hostDlg'), seen = new Map(); let picked = null;
+      const say = text => { $('hostState').textContent = text; };
+      const draw = () => $('hostList').replaceChildren(...[...seen.values()].map(host => h('button', { type: 'button', class: 'btn host-opt', disabled: !!picked, onclick: () => pick(host) },
+        h('strong', { text: host.name }), h('span', { text: `Host code ${Link.prettyCode(host.id)}` }))));
+      const ask = topic => subReady.then(() => Link.publish(topic, { t: 'who', reply })).catch(() => say('The link service could not be reached. Check that this computer has internet.'));
+      function pick(host) {
+        picked = host; draw();
+        const code = String(1000 + Math.floor(Math.random() * 9000));
+        say(`Asking ${host.name}\u2026`);
+        onJoin = step => {
+          if (step === 'wait') say(`Waiting for the owner to allow this register on the host. The host screen should show code ${code}.`);
+          else if (step === 'refused') { say('The host refused this register.'); picked = null; draw(); }
+          else if (step === 'linked') dlg.close('linked');
+        };
+        hangUp();
+        connect(host.id, code, () => { if (picked === host && dlg.open && !conn) { say('The host did not answer. Is the owner manager open on the host computer?'); picked = null; draw(); } });
+      }
+      onHostSeen = m => { const id = String(m.id).slice(0, 40); seen.set(id, { id, name: String(m.name || 'Host').slice(0, 40) }); if (!picked) say('Pick your host.'); draw(); };
+      draw(); say('Looking for hosts on this internet connection\u2026'); $('hostCode').value = '';
+      listen(); Link.areaTopic().then(ask, () => say('Type the host code shown on the owner\u2019s screen.'));
+      const none = setTimeout(() => { if (!seen.size && !picked) say('No host answered. On the host computer, open the owner manager and switch on Wi-Fi sync, or type its host code here.'); }, 7000);
+      const find = e => { e.preventDefault(); const code = $('hostCode').value.toLowerCase().replace(/[^0-9a-f]/g, ''); if (code.length === 8) { say('Looking for that host\u2026'); ask('gpos-c-' + code); } else say('A host code is 8 letters and digits.'); };
+      const skip = () => { if (!link?.key) { link = { skip: true }; LS.set(K_LINK, link); } dlg.close('skip'); };
+      dlg.querySelector('form').addEventListener('submit', find); $('hostSkip').addEventListener('click', skip);
+      return new Promise(res => {
+        dlg.addEventListener('close', () => {
+          clearTimeout(none); onHostSeen = onJoin = null;
+          dlg.querySelector('form').removeEventListener('submit', find); $('hostSkip').removeEventListener('click', skip);
+          if (dlg.returnValue === 'linked') toast(`Linked to ${link.host.name}.`, 'good');
+          paint(); res(dlg.returnValue);
+        }, { once: true });
+        dlg.returnValue = ''; dlg.showModal();
+      });
+    }
+    function start() {
+      if (hostedHere()) return;
+      if (link?.key) { paint(); connect(link.host.id); }
+      else if (!link && !DB) choose();                    // a brand-new register asks once
+      window.addEventListener('online', () => { if (linked() && !conn) { tries = 0; connect(link.host.id); } });
+    }
+    return { start, paint, track, push, resync, choose };
+  })();
+
+  /* ---------- start ---------- */
+  const tick = () => { const d = new Date(); $('clock').textContent = `${isoDate(d)} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+  window.addEventListener('unhandledrejection', e => toast(`Something went wrong: ${e.reason?.message || e.reason}`, 'bad'));
+  async function start() {
+    tick(); setInterval(tick, 15000);
+    try {
+      DB = await Store.load();
+      if (DB && needsFreeze(DB)) DB = await Store.update(freezeOverdue);
+    } catch (e) { toast(`Local storage is unavailable: ${e.message}`, 'bad'); }
+    Store.onChange(async () => { try { DB = await Store.load(); if (DB) pruneCart(); render(); } catch { /* keep the last good copy */ } });
+    render(); refocus();
+    Net.start();
+    registerOffline().then(ok => { $('offlineLamp').hidden = !ok; });
+  }
+  start();
+})();
+</script>
+</body>
+</html>
